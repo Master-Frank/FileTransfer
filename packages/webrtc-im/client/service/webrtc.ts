@@ -87,8 +87,9 @@ export class WebRTCService {
 
   private createRTCPeerConnection(ice?: RTCIceServer[]) {
     const defaultIces: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+    const iceServers = typeof ice === "undefined" ? defaultIces : ice;
     const connection = new RTCPeerConnection({
-      iceServers: ice && ice.length ? ice : defaultIces,
+      iceServers,
     });
     if (!this.connectedPromise) {
       this.connectedPromise = createConnectReadyPromise();

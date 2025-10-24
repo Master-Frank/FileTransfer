@@ -30,16 +30,74 @@ export type ChatEventMap = {
   [SERVER_EVENT.SEND_ICE]: ServerEvent[typeof SERVER_EVENT.SEND_ICE];
 };
 
-const getDefaultDeviceName = () => {
+
+// 公网 IP 缓存配置
+const PUBLIC_IP_CACHE_KEY = "webrtc-im-public-ip-cache";
+const PUBLIC_IP_CACHE_TTL_MS = 10 * 60 * 1000; // 10 分钟
+
+const withTimeout = async <T>(p: Promise<T>, ms = 1500): Promise<T> => {
+  return Promise.race<T>([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)) as Promise<T>,
+  ]);
+};
+
+const fetchIpEndpoints = async (): Promise<string> => {
+  // 顺序尝试多个端点，任一成功即返回
   try {
-    const ua = navigator.userAgent || "";
-    if (/iPhone|iPad|iPod/i.test(ua)) return "iOS 设备";
-    if (/Android/i.test(ua)) return "Android 设备";
-    if (/Mac OS X/i.test(ua)) return "Mac";
-    if (/Windows/i.test(ua)) return "Windows PC";
-    if (/Linux/i.test(ua)) return "Linux 设备";
+    // ipify
+    const r1 = await withTimeout(fetch("https://api.ipify.org?format=json"));
+    const j1 = await r1.json().catch(() => null);
+    if (j1 && typeof j1.ip === "string" && j1.ip) return j1.ip;
   } catch (_) {}
-  return "未知设备";
+  try {
+    // ipinfo
+    const r2 = await withTimeout(fetch("https://ipinfo.io/json"));
+    const j2 = await r2.json().catch(() => null);
+    if (j2 && typeof j2.ip === "string" && j2.ip) return j2.ip;
+  } catch (_) {}
+  try {
+    // icanhazip
+    const r3 = await withTimeout(fetch("https://ipv4.icanhazip.com"));
+    const t3 = (await r3.text()).trim();
+    if (t3) return t3;
+  } catch (_) {}
+  try {
+    // ifconfig.me
+    const r4 = await withTimeout(fetch("https://ifconfig.me/ip"));
+    const t4 = (await r4.text()).trim();
+    if (t4) return t4;
+  } catch (_) {}
+  try {
+    // Cloudflare trace
+    const r5 = await withTimeout(fetch("https://www.cloudflare.com/cdn-cgi/trace"));
+    const t5 = await r5.text();
+    const line = t5.split("\n").find(l => l.startsWith("ip="));
+    const ip = line ? line.split("=")[1].trim() : "";
+    if (ip) return ip;
+  } catch (_) {}
+  return "WAN";
+};
+
+const resolvePublicIpWithCache = async (): Promise<string> => {
+  try {
+    if (typeof window !== "undefined") {
+      const raw = localStorage.getItem(PUBLIC_IP_CACHE_KEY);
+      if (raw) {
+        const { ip, ts } = JSON.parse(raw);
+        if (typeof ip === "string" && ip && typeof ts === "number" && Date.now() - ts < PUBLIC_IP_CACHE_TTL_MS) {
+          return ip;
+        }
+      }
+    }
+  } catch (_) {}
+  const ip = await fetchIpEndpoints();
+  try {
+    if (typeof window !== "undefined" && ip && ip !== "WAN") {
+      localStorage.setItem(PUBLIC_IP_CACHE_KEY, JSON.stringify({ ip, ts: Date.now() }));
+    }
+  } catch (_) {}
+  return ip;
 };
 
 export class SupabaseChatService {
@@ -55,12 +113,15 @@ export class SupabaseChatService {
   private readyPromise: PromiseWithResolve<void> | null;
   /** Self ID */
   public selfId: string;
+  /** Self public IP for LAN grouping */
+  public selfIp: string;
 
   constructor(private store: StoreService) {
     this.bus = new EventBus<ChatEventMap>();
     this.stateAtom = atom<ConnectionState>(CONNECTION_STATE.CONNECTING);
     this.readyPromise = createConnectReadyPromise();
     this.selfId = "";
+    this.selfIp = "";
     this.init();
   }
 
@@ -115,23 +176,39 @@ export class SupabaseChatService {
     this.channel.on("presence", { event: "sync" }, () => {
       const users: Array<{ id: string; device: string; ip: string; hash: string; name?: string }> = [];
       const state = this.channel.presenceState();
+      
+      // 调试：输出原始presence状态
+      console.log("[Presence Debug] Raw presence state:", state);
+      
       Object.keys(state).forEach(id => {
         const arr = state[id];
         arr.forEach((user: any) => {
           const member = user?.metas?.[0] || {};
-          const device = member?.device || DEVICE_TYPE.PC;
-          const ip = member?.ip || "WAN";
-          const hash = member?.hash || "WAN";
-          const name = member?.name;
+          
+          // 修复：如果member为空，直接从user对象提取数据
+          const device = member?.device || user?.device || DEVICE_TYPE.PC;
+          const ip = member?.ip || user?.ip || "WAN";
+          const hash = member?.hash || user?.hash || "WAN";
+          const name = member?.name || user?.name;
+          
+          // 调试：输出每个用户的原始数据
+          console.log(`[Presence Debug] User ${id}:`, { 
+            fullUser: user, 
+            member, 
+            extractedFields: { device, ip, hash, name }
+          });
+          
           users.push({ id, device, ip, hash, name });
         });
       });
       // De-duplicate by id
       const map: Record<string, (typeof users)[number]> = {};
       users.forEach(u => (map[u.id] = u));
-      let next = Object.values(map);
-      // Filter out current device
-      next = next.filter(u => u.id !== this.selfId);
+      const next = Object.values(map).filter(u => u.id !== this.selfId);
+      
+      // 调试：输出最终用户列表
+      console.log("[Presence Debug] Final user list:", next);
+      
       // Update store
       // @ts-expect-error jotai atoms set
       const { userListAtom } = this.store;
@@ -140,7 +217,7 @@ export class SupabaseChatService {
     });
 
     // Subscribe
-    this.channel.subscribe((status: string) => {
+    this.channel.subscribe(async (status: string) => {
       if (status === "SUBSCRIBED") {
         const { atoms } = require("../store/atoms");
         atoms.set(this.stateAtom, CONNECTION_STATE.CONNECTED);
@@ -150,14 +227,25 @@ export class SupabaseChatService {
           (typeof window !== "undefined" && localStorage.getItem("webrtc-im-device-name")) ||
           getDefaultDeviceName();
         const isProbablyMobile = isMobileLike();
+        // 增强公网 IP 获取：多端点 + 超时 + 缓存
+        const ip = await resolvePublicIpWithCache();
+        this.selfIp = ip || "WAN";
+        
+        // 调试：输出IP获取结果
+        console.log("[IP Debug] Resolved IP:", ip, "selfIp:", this.selfIp);
+        
         const presencePayload = {
           id: this.selfId,
           device: isProbablyMobile ? DEVICE_TYPE.MOBILE : DEVICE_TYPE.PC,
-          ip: "WAN",
-          hash: "WAN",
+          ip: this.selfIp || "WAN",
+          hash: this.selfIp || "WAN",
           name: deviceName,
         };
-        this.channel.track(presencePayload);
+        
+        // 调试：输出发送的presence payload
+        console.log("[Presence Debug] Sending presence payload:", presencePayload);
+        
+        await this.channel.track(presencePayload);
         this.readyPromise && this.readyPromise.resolve();
         this.readyPromise = null;
       }
@@ -177,8 +265,8 @@ export class SupabaseChatService {
         const payload = {
           id: this.selfId,
           device: isProbablyMobile ? DEVICE_TYPE.MOBILE : DEVICE_TYPE.PC,
-          ip: "WAN",
-          hash: "WAN",
+          ip: this.selfIp || "WAN",
+          hash: this.selfIp || "WAN",
           name,
         };
         await this.channel.track(payload);

@@ -75,12 +75,50 @@ export const Contacts: FC = () => {
       !keyword ||
       user.id.toLowerCase().includes(keyword) ||
       (user.name && user.name.toLowerCase().includes(keyword));
-    // 简化为仅按搜索关键字过滤；LAN/WAN 切换仅影响空态文案
-    return isMatchSearch;
+    if (!isMatchSearch) return false;
+    
+    const selfIp = chat.selfIp;
+    const myKnown = !!selfIp && selfIp !== "WAN";
+    const peerKnown = !!user.ip && user.ip !== "WAN";
+    
+    let shouldShow = false;
+    let reason = "";
+    
+    if (netType === NET_TYPE.LAN) {
+      // LAN：仅在双方已知且相同IP时显示
+      if (myKnown && peerKnown && user.ip === selfIp) {
+        shouldShow = true;
+        reason = "same known IP -> LAN";
+      } else {
+        shouldShow = false;
+        reason = "not same known IP -> not LAN";
+      }
+    } else {
+      // WAN：不同已知IP 或 任一未知IP 时显示
+      if (!myKnown || !peerKnown) {
+        shouldShow = true;
+        reason = "unknown IP -> WAN";
+      } else if (user.ip !== selfIp) {
+        shouldShow = true;
+        reason = "different IP -> WAN";
+      } else {
+        shouldShow = false;
+        reason = "same IP -> not WAN";
+      }
+    }
+    
+    // 调试信息
+    console.log(`[Filter Debug] User: ${user.id}, selfIp: ${selfIp}, userIp: ${user.ip}, myKnown: ${myKnown}, peerKnown: ${peerKnown}, netType: ${netType}, shouldShow: ${shouldShow}, reason: ${reason}`);
+    
+    return shouldShow;
   });
 
   return (
     <div className={styles.container}>
+      {/* 调试信息显示 */}
+      <div style={{ padding: '8px', fontSize: '12px', color: '#666', borderBottom: '1px solid #eee' }}>
+        本地IP: {chat.selfIp || '未获取'} | 当前标签: {netType === NET_TYPE.LAN ? 'LAN' : 'WAN'}
+      </div>
       <Input
         value={search}
         onChange={setSearch}
@@ -104,43 +142,43 @@ export const Contacts: FC = () => {
                   <span className={styles.name}>
                     {user.name || (user.device === DEVICE_TYPE.MOBILE ? "移动设备" : "桌面设备")}
                    </span>
-                  {user.device === DEVICE_TYPE.MOBILE ? PhoneIcon : PCIcon}
-                  {peerId === user.id && (
-                    <span
-                      className={styles.dot}
-                      aria-label={
-                        rtcState === CONNECTION_STATE.CONNECTED
-                          ? "connected"
-                          : rtcState === CONNECTION_STATE.CONNECTING
-                          ? "connecting"
-                          : "ready"
-                      }
-                      style={{
-                        backgroundColor:
-                          rtcState === CONNECTION_STATE.CONNECTED
-                            ? "rgb(var(--green-6))"
-                            : rtcState === CONNECTION_STATE.CONNECTING
-                            ? "rgb(var(--arcoblue-6))"
-                            : "var(--color-border-2)",
-                        marginLeft: 8,
-                      }}
-                    />
-                  )}
-                </div>
-                {/* 只展示设备名称，不显示随机码/ID */}
-                <div className={styles.ip}></div>
-              </div>
-            </div>
-            <div className={styles.divide}></div>
-          </Fragment>
-        ))}
-      </div>
-      {!filteredList.length && (
-        <Empty
-          className={styles.empty}
-          description={`No ${netType === NET_TYPE.LAN ? "LAN" : "WAN"} User`}
-        ></Empty>
-      )}
-    </div>
-  );
-};
+                   {user.device === DEVICE_TYPE.MOBILE ? PhoneIcon : PCIcon}
+                   {peerId === user.id && (
+                     <span
+                       className={styles.dot}
+                       aria-label={
+                         rtcState === CONNECTION_STATE.CONNECTED
+                           ? "connected"
+                           : rtcState === CONNECTION_STATE.CONNECTING
+                           ? "connecting"
+                           : "ready"
+                       }
+                       style={{
+                         backgroundColor:
+                           rtcState === CONNECTION_STATE.CONNECTED
+                             ? "rgb(var(--green-6))"
+                             : rtcState === CONNECTION_STATE.CONNECTING
+                             ? "rgb(var(--arcoblue-6))"
+                             : "var(--color-border-2)",
+                         marginLeft: 8,
+                       }}
+                     />
+                   )}
+                 </div>
+                 {/* 调试：展示 IP（未知时显示 WAN） */}
+                 <div className={styles.ip}>{user.ip || "WAN"}</div>
+               </div>
+             </div>
+             <div className={styles.divide}></div>
+           </Fragment>
+         ))}
+       </div>
+       {!filteredList.length && (
+         <Empty
+           className={styles.empty}
+           description={`No ${netType === NET_TYPE.LAN ? "LAN" : "WAN"} User`}
+         ></Empty>
+       )}
+     </div>
+   );
+ };
