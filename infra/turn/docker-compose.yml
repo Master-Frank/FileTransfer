@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  coturn:
+    image: instrumentisto/coturn:latest
+    container_name: coturn
+    restart: unless-stopped
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+    # If hosting behind NAT, consider adding extraHosts or network settings as needed

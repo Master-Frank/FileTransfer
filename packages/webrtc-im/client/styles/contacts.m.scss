@@ -72,6 +72,14 @@
     color: var(--color-text-2);
     font-size: 12px;
   }
+
+  .dot {
+    border-radius: 50%;
+    height: 8px;
+    width: 8px;
+    display: inline-block;
+    vertical-align: middle;
+  }
 }
 
 .divide {
@@ -86,9 +94,29 @@
     flex: 1 0;
     max-height: calc(100% - 60px);
     width: 100%;
+    padding: 12px 4vw; /* 使用 vw 适配水平内边距 */
 
     * {
       cursor: unset !important;
     }
+  }
+
+  .users {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* 促进移动端滚动回弹 */
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  }
+
+  .user {
+    padding: 12px 12px; /* 增加触控间距 */
+    margin-bottom: 8px;
+  }
+
+  .name {
+    font-size: 1rem; /* 正文字体不小于 16px */
+  }
+
+  .ip {
+    font-size: 0.875rem; /* 次级信息约 14px */
   }
 }

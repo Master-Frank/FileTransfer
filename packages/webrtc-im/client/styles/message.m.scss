@@ -32,6 +32,22 @@
   }
 }
 
+/* 返回按钮：移动端 48x48 可点击区域，桌面端不显示 */
+.back {
+  all: unset;
+  align-items: center;
+  display: none;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  margin-left: -4px; /* 轻微向左扩展点击区域 */
+
+  :global(.arco-icon) {
+    font-size: 20px;
+  }
+}
+
 .dot {
   border-radius: 50%;
   height: 8px;
@@ -228,16 +244,38 @@
 }
 
 :global(.webrtc-im-mobile) {
-  .container {
+  /* 仅当消息层处于活动状态时才覆盖整个屏幕 */
+  .mobileActive {
     animation: slide-in-from-right 0.2s ease-out forwards;
     background-color: var(--color-bg-3);
-    height: 100%;
     position: fixed;
     width: 100%;
+    /* 避开顶部状态横幅 */
+    top: calc(env(safe-area-inset-top, 0px) + 44px);
+    height: calc(100% - (env(safe-area-inset-top, 0px) + 44px));
 
     * {
       cursor: unset !important;
     }
+  }
+
+  /* 未选择会话时，隐藏消息层，避免遮挡联系人列表 */
+  .mobileHidden {
+    display: none !important;
+  }
+
+  /* 移动端顶部标题区高度 48px，并显示返回按钮 */
+  .captainArea {
+    height: 48px;
+    padding: 6px 12px;
+    padding-left: calc(env(safe-area-inset-left, 0px) + 12px);
+  }
+
+  .back {
+    display: inline-flex;
+    margin-right: 8px;
+    /* 扩大可点击范围但不影响布局 */
+    touch-action: manipulation;
   }
 }
 

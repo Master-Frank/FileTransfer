@@ -1,11 +1,7 @@
 import type { FC } from "react";
 import { Fragment, useEffect, useState } from "react";
 import styles from "../styles/contacts.m.scss";
-import type {
-  ServerInitUserEvent,
-  ServerLeaveRoomEvent,
-  ServerSendOfferEvent,
-} from "../../types/signaling";
+import type { ServerSendOfferEvent } from "../../types/signaling";
 import { SERVER_EVENT } from "../../types/signaling";
 import { Empty, Input } from "@arco-design/web-react";
 import { useGlobalContext } from "../store/global";
@@ -17,29 +13,21 @@ import { PhoneIcon } from "../component/icons/phone";
 import { PCIcon } from "../component/icons/pc";
 import { IconSearch } from "@arco-design/web-react/icon";
 import { useAtom, useAtomValue } from "jotai";
-import { cs, sleep } from "@block-kit/utils";
+import { cs } from "@block-kit/utils";
 import { atoms } from "../store/atoms";
 import type { O } from "@block-kit/utils/dist/es/types";
+import { CONNECTION_STATE } from "../../types/client";
 
 export const Contacts: FC = () => {
-  const { signal, store, message, rtc } = useGlobalContext();
+  const { chat, store, message, rtc } = useGlobalContext();
   const [search, setSearch] = useState("");
   const netType = useAtomValue(store.netTypeAtom);
   const [peerId, setPeerId] = useAtom(store.peerIdAtom);
   const [list, setList] = useAtom(store.userListAtom);
+  const rtcState = useAtomValue(rtc.stateAtom);
 
-  const onInitUser = useMemoFn(async (payload: ServerInitUserEvent) => {
-    setList(payload.users);
-    await sleep(10);
-    if (!peerId) return void 0;
-    // 如果初始化时 peerId 已经存在, 则尝试连接
-    const list = atoms.get(store.userListAtom);
-    const peerUser = list.find(user => user.id === peerId);
-    peerUser && rtc.connect(peerId);
-  });
-
+  // Supabase presence 管理用户列表（必要时提供本地去重/合并接口）
   const onJoinRoom = useMemoFn((user: Users[number]) => {
-    console.log("Join Room", user);
     setList(prev => {
       const userMap: O.Map<Users[number]> = {};
       prev.forEach(u => (userMap[u.id] = u));
@@ -48,30 +36,18 @@ export const Contacts: FC = () => {
     });
   });
 
-  const onLeaveRoom = useMemoFn((user: ServerLeaveRoomEvent) => {
-    console.log("Leave Room", user);
-    if (user.id === peerId) {
-      // 如果离开的是当前连接的用户, 则保留当前的用户状态
-      rtc.disconnect();
-      const peerUser = list.find(u => u.id === peerId);
-      peerUser && (peerUser.offline = true);
-    } else {
-      setList(prev => prev.filter(u => u.id !== user.id));
-    }
-  });
-
   const connectUser = async (userId: string) => {
     if (peerId === userId) return void 0;
     rtc.disconnect();
     message.clearEntries();
     setPeerId(userId);
-    await signal.isConnected();
+    await chat.isConnected();
     rtc.connect(userId);
   };
 
   const onReceiveOffer = useMemoFn(async (event: ServerSendOfferEvent) => {
     const { from } = event;
-    // 这个实际上是先于实际 setRemoteDescription 的, 事件调用优先级会更高
+    // 事件优先级高于 setRemoteDescription，确保切换到正确 peer
     if (
       peerId === from ||
       rtc.connection.connectionState === "new" ||
@@ -86,43 +62,21 @@ export const Contacts: FC = () => {
   });
 
   useEffect(() => {
-    signal.bus.on(SERVER_EVENT.INIT_USER, onInitUser, 105);
-    signal.bus.on(SERVER_EVENT.JOIN_ROOM, onJoinRoom);
-    signal.bus.on(SERVER_EVENT.LEAVE_ROOM, onLeaveRoom);
-    signal.bus.on(SERVER_EVENT.SEND_OFFER, onReceiveOffer, 10);
+    // 改为监听 Supabase 信令事件
+    chat.bus.on(SERVER_EVENT.SEND_OFFER, onReceiveOffer, 10);
     return () => {
-      signal.bus.off(SERVER_EVENT.INIT_USER, onInitUser);
-      signal.bus.off(SERVER_EVENT.JOIN_ROOM, onJoinRoom);
-      signal.bus.off(SERVER_EVENT.LEAVE_ROOM, onLeaveRoom);
-      signal.bus.off(SERVER_EVENT.SEND_OFFER, onReceiveOffer);
+      chat.bus.off(SERVER_EVENT.SEND_OFFER, onReceiveOffer);
     };
-  }, [onInitUser, onJoinRoom, onLeaveRoom, onReceiveOffer, signal]);
-
-  useEffect(() => {
-    // 若 PeerId 变化, 则将通讯录的下线用户状态清除
-    const users = atoms.get(store.userListAtom);
-    const newUsers = users.filter(user => !user.offline);
-    newUsers.length !== users.length && atoms.set(store.userListAtom, newUsers);
-  }, [peerId, store.userListAtom]);
+  }, [onReceiveOffer, chat]);
 
   const filteredList = list.filter(user => {
-    const isMatchSearch = !search || user.id.toLowerCase().includes(search.toLowerCase());
-    if (netType === NET_TYPE.WAN) {
-      return isMatchSearch;
-    }
-    let isLan = signal.hash === user.hash;
-    // 本地部署应用时, ip 地址可能是 ::1 或 ::ffff:
-    if (
-      isLan === true ||
-      signal.ip === ":*:*" ||
-      signal.ip.startsWith("192.168") ||
-      signal.ip.startsWith("10.") ||
-      signal.ip.startsWith("172.") ||
-      signal.ip.startsWith("::ffff:192.168")
-    ) {
-      isLan = true;
-    }
-    return isLan && isMatchSearch;
+    const keyword = search.trim().toLowerCase();
+    const isMatchSearch =
+      !keyword ||
+      user.id.toLowerCase().includes(keyword) ||
+      (user.name && user.name.toLowerCase().includes(keyword));
+    // 简化为仅按搜索关键字过滤；LAN/WAN 切换仅影响空态文案
+    return isMatchSearch;
   });
 
   return (
@@ -147,10 +101,34 @@ export const Contacts: FC = () => {
               </div>
               <div className={styles.userInfo}>
                 <div className={styles.captain}>
-                  <span className={styles.name}>{user.id}</span>
+                  <span className={styles.name}>
+                    {user.name || (user.device === DEVICE_TYPE.MOBILE ? "移动设备" : "桌面设备")}
+                   </span>
                   {user.device === DEVICE_TYPE.MOBILE ? PhoneIcon : PCIcon}
+                  {peerId === user.id && (
+                    <span
+                      className={styles.dot}
+                      aria-label={
+                        rtcState === CONNECTION_STATE.CONNECTED
+                          ? "connected"
+                          : rtcState === CONNECTION_STATE.CONNECTING
+                          ? "connecting"
+                          : "ready"
+                      }
+                      style={{
+                        backgroundColor:
+                          rtcState === CONNECTION_STATE.CONNECTED
+                            ? "rgb(var(--green-6))"
+                            : rtcState === CONNECTION_STATE.CONNECTING
+                            ? "rgb(var(--arcoblue-6))"
+                            : "var(--color-border-2)",
+                        marginLeft: 8,
+                      }}
+                    />
+                  )}
                 </div>
-                <div className={styles.ip}>{user.ip}</div>
+                {/* 只展示设备名称，不显示随机码/ID */}
+                <div className={styles.ip}></div>
               </div>
             </div>
             <div className={styles.divide}></div>

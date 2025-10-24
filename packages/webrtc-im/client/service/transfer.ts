@@ -54,7 +54,14 @@ export class TransferService {
     if (entry.key === MESSAGE_TYPE.TEXT) {
       this.bus.emit(TRANSFER_EVENT.TEXT, { data: entry.data, from: TRANSFER_FROM.SELF });
     }
-    this.rtc.channel.send(TSON.stringify(entry)!);
+    // 保证数据通道已打开
+    await this.rtc.isConnected();
+    try {
+      if (this.rtc.channel.readyState !== "open") return;
+      this.rtc.channel.send(TSON.stringify(entry)!);
+    } catch (e) {
+      console.error("RTC channel send text failed", e);
+    }
   }
 
   public async startSendFileList(files: FileList) {
@@ -133,6 +140,8 @@ export class TransferService {
       // 数据接收完毕 通知 发送方 接收完毕
       // 数据块序列号 [0, TOTAL)
       if (series >= total) {
+        // 修复：接收端完成后本地也要清理 fileState，避免 getFile 返回 null
+        this.fileState.delete(id);
         this.sendTextMessage({ key: MESSAGE_TYPE.FILE_FINISH, id });
         return void 0;
       }
@@ -216,17 +225,45 @@ export class TransferService {
     this.isSending = true;
     const chunkSize = this.getMaxMessageSize();
     const channel = this.rtc.channel;
+    // 保证数据通道已打开
+    await this.rtc.isConnected();
     while (this.tasks.length) {
       const next = this.tasks.shift();
       if (!next) break;
+      if (channel.readyState !== "open") {
+        this.isSending = false;
+        break;
+      }
       if (channel.bufferedAmount >= chunkSize) {
         await new Promise(resolve => {
           channel.onbufferedamountlow = () => resolve(0);
         });
       }
       const buffer = next instanceof Blob ? await next.arrayBuffer() : next;
-      buffer && this.rtc.channel.send(buffer);
+      try {
+        if (channel.readyState !== "open") {
+          this.isSending = false;
+          break;
+        }
+        buffer && channel.send(buffer);
+      } catch (e) {
+        console.error("RTC channel send buffer failed", e);
+        this.isSending = false;
+        break;
+      }
     }
     this.isSending = false;
+  }
+
+  /**
+   * 获取接收完成的文件 Blob
+   */
+  public async getFile(id: string): Promise<Blob | null> {
+    // 如果还在接收，返回 null
+    if (this.fileState.has(id)) return null;
+    const mapper = this.fileMapper.get(id);
+    if (!mapper || !mapper.length) return null;
+    // 组装 Blob（ArrayBuffer[] -> Blob）
+    return new Blob(mapper, { type: "application/octet-stream" });
   }
 }

@@ -1,3 +1,4 @@
+require("dotenv").config();
 const path = require("path");
 const { default: HtmlPlugin } = require("@rspack/plugin-html");
 const CopyPlugin = require("copy-webpack-plugin");
@@ -31,6 +32,10 @@ module.exports = {
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./client"),
+      // Ensure supabase uses browser fetch during bundling
+      "@supabase/node-fetch": "cross-fetch",
+      // Force cross-fetch to use browser polyfill to avoid node core modules
+      "cross-fetch": "cross-fetch/dist/browser-polyfill.js",
     },
   },
   builtins: {
@@ -39,6 +44,13 @@ module.exports = {
       "process.env.RANDOM_ID": JSON.stringify(RANDOM_ID),
       "process.env.PUBLIC_PATH": JSON.stringify(PUBLIC_PATH),
       "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
+      // Supabase client envs
+      "process.env.SUPABASE_URL": JSON.stringify(process.env.SUPABASE_URL || ""),
+      "process.env.SUPABASE_ANON": JSON.stringify(process.env.SUPABASE_ANON || ""),
+      "process.env.SUPABASE_CHANNEL": JSON.stringify(process.env.SUPABASE_CHANNEL || "webrtc-im"),
+      // TURN ICE for WebRTC
+      "process.env.TURN_ICE": JSON.stringify(process.env.TURN_ICE || ""),
+      "import.meta.env.TURN_ICE": JSON.stringify(process.env.TURN_ICE || ""),
     },
     pluginImport: [
       {
@@ -52,7 +64,7 @@ module.exports = {
     rules: [
       { test: /\.svg$/, type: "asset" },
       {
-        test: /\.(m|module).scss$/,
+        test: /\.(m|module)\.scss$/,
         use: [{ loader: "sass-loader" }],
         type: "css/module",
       },
@@ -86,13 +98,6 @@ module.exports = {
     assetModuleFilename: isDev ? "[name].[ext]" : "[name].[contenthash].[ext]",
   },
   devServer: {
-    port: 8080,
-    proxy: {
-      "/socket.io": {
-        target: "ws://localhost:3000",
-        changeOrigin: true,
-        ws: true,
-      },
-    },
+    port: Number(process.env.PORT || 8080),
   },
 };

@@ -1,56 +1,56 @@
 import type { PrimitiveAtom } from "jotai";
 import { atom } from "jotai";
 import type { TransferEntry, TransferEventMap, TransferFrom } from "../../types/transfer";
-import { TRANSFER_EVENT, TRANSFER_TYPE } from "../../types/transfer";
-import type { SignalService } from "./signal";
+import { TRANSFER_EVENT, TRANSFER_TYPE, TRANSFER_FROM } from "../../types/transfer";
 import type { WebRTCService } from "./webrtc";
 import { atoms } from "../store/atoms";
 import { Bind, Scroll, sleep } from "@block-kit/utils";
-import type { CallbackEvent, ServerEvent } from "../../types/signaling";
+import type { ServerEvent } from "../../types/signaling";
 import { SERVER_EVENT } from "../../types/signaling";
 import { WEBRTC_EVENT } from "../../types/webrtc";
 import type { StoreService } from "./store";
 import type { TransferService } from "./transfer";
+import type { SupabaseChatService } from "./chat";
+import { DEVICE_TYPE } from "../../types/client";
 
 export class MessageService {
   public scroll: HTMLDivElement | null;
   public readonly listAtom: PrimitiveAtom<TransferEntry[]>;
 
   constructor(
-    private signal: SignalService,
     private rtc: WebRTCService,
     private store: StoreService,
-    private transfer: TransferService
+    private transfer: TransferService,
+    private chat: SupabaseChatService
   ) {
     this.scroll = null;
     this.listAtom = atom<TransferEntry[]>([]);
-    this.signal.socket.on("connect", this.onSignalConnected);
-    this.signal.socket.on("disconnect", this.onSignalDisconnected);
-    this.signal.bus.on(SERVER_EVENT.SEND_OFFER, this.onReceiveOffer);
-    this.signal.bus.on(SERVER_EVENT.SEND_ICE, this.onReceiveIce);
-    this.signal.bus.on(SERVER_EVENT.SEND_ANSWER, this.onReceiveAnswer);
-    this.signal.bus.on(SERVER_EVENT.SEND_ERROR, this.onReceiveError);
+    // WebRTC 状态事件
     this.rtc.bus.on(WEBRTC_EVENT.STATE_CHANGE, this.onRTCStateChange);
     this.rtc.bus.on(WEBRTC_EVENT.CONNECTING, this.onRTCConnecting);
     this.rtc.bus.on(WEBRTC_EVENT.CLOSE, this.onRTCClose);
+    // 传输事件
     this.transfer.bus.on(TRANSFER_EVENT.TEXT, this.onTextMessage);
     this.transfer.bus.on(TRANSFER_EVENT.FILE_START, this.onFileStart);
     this.transfer.bus.on(TRANSFER_EVENT.FILE_PROCESS, this.onFileProcess);
+    // Supabase 聊天与信令事件（仅用于日志显示）
+    this.chat.bus.on("TEXT", this.onChatText);
+    this.chat.bus.on(SERVER_EVENT.SEND_OFFER, this.onReceiveOffer);
+    this.chat.bus.on(SERVER_EVENT.SEND_ICE, this.onReceiveIce);
+    this.chat.bus.on(SERVER_EVENT.SEND_ANSWER, this.onReceiveAnswer);
   }
 
   public destroy() {
-    this.signal.socket.off("connect", this.onSignalConnected);
-    this.signal.socket.off("disconnect", this.onSignalDisconnected);
-    this.signal.bus.off(SERVER_EVENT.SEND_OFFER, this.onReceiveOffer);
-    this.signal.bus.off(SERVER_EVENT.SEND_ICE, this.onReceiveIce);
-    this.signal.bus.off(SERVER_EVENT.SEND_ANSWER, this.onReceiveAnswer);
-    this.signal.bus.off(SERVER_EVENT.SEND_ERROR, this.onReceiveError);
     this.rtc.bus.off(WEBRTC_EVENT.STATE_CHANGE, this.onRTCStateChange);
     this.rtc.bus.off(WEBRTC_EVENT.CONNECTING, this.onRTCConnecting);
     this.rtc.bus.off(WEBRTC_EVENT.CLOSE, this.onRTCClose);
     this.transfer.bus.off(TRANSFER_EVENT.TEXT, this.onTextMessage);
     this.transfer.bus.off(TRANSFER_EVENT.FILE_START, this.onFileStart);
     this.transfer.bus.off(TRANSFER_EVENT.FILE_PROCESS, this.onFileProcess);
+    this.chat.bus.off("TEXT", this.onChatText as any);
+    this.chat.bus.off(SERVER_EVENT.SEND_OFFER, this.onReceiveOffer);
+    this.chat.bus.off(SERVER_EVENT.SEND_ICE, this.onReceiveIce);
+    this.chat.bus.off(SERVER_EVENT.SEND_ANSWER, this.onReceiveAnswer);
   }
 
   public addEntry(entry: TransferEntry) {
@@ -74,63 +74,67 @@ export class MessageService {
     atoms.set(this.listAtom, []);
   }
 
-  @Bind
-  private onSignalConnected() {
-    this.addSystemEntry("Signal Connected");
-  }
-
-  @Bind
-  private onSignalDisconnected() {
-    this.addSystemEntry("Signal Disconnected");
+  private getPeerDisplayName(id?: string) {
+    const peerId = id || atoms.get(this.store.peerIdAtom);
+    const list = atoms.get(this.store.userListAtom) as any[];
+    const user = list.find((u: any) => u.id === peerId);
+    if (user?.name) return user.name as string;
+    if (user?.device) return user.device === DEVICE_TYPE.MOBILE ? "Mobile" : "PC";
+    return "未知设备";
   }
 
   @Bind
   private onRTCConnecting() {
-    const peerId = atoms.get(this.store.peerIdAtom);
-    this.addSystemEntry(`WebRTC Connecting To ${peerId}`);
+    const name = this.getPeerDisplayName();
+    this.addSystemEntry(`WebRTC 正在连接至 ${name}`);
   }
 
   @Bind
   private onRTCClose() {
-    const peerId = atoms.get(this.store.peerIdAtom);
-    this.addSystemEntry(`WebRTC ${peerId} Closed`);
+    const name = this.getPeerDisplayName();
+    this.addSystemEntry(`WebRTC 与 ${name} 连接已关闭`);
   }
 
   @Bind
   private onRTCStateChange(connection: RTCPeerConnection) {
-    const peerId = atoms.get(this.store.peerIdAtom);
+    const name = this.getPeerDisplayName();
     if (connection.connectionState === "disconnected") {
-      this.addSystemEntry(`WebRTC ${peerId} Disconnected`);
+      this.addSystemEntry(`WebRTC 与 ${name} 连接已断开`);
     }
     if (connection.connectionState === "connected") {
-      this.addSystemEntry(`WebRTC ${peerId} Connected`);
+      this.addSystemEntry(`WebRTC 与 ${name} 已连接`);
     }
     if (connection.connectionState === "failed") {
-      this.addSystemEntry(`WebRTC ${peerId} Connection Failed`);
+      this.addSystemEntry(`WebRTC 与 ${name} 连接失败`);
     }
     if (connection.connectionState === "closed") {
-      this.addSystemEntry(`WebRTC ${peerId} Connection Closed`);
+      this.addSystemEntry(`WebRTC 与 ${name} 连接已关闭`);
     }
   }
 
   @Bind
   private onReceiveOffer(params: ServerEvent["SEND_OFFER"]) {
-    this.addSystemEntry(`Received ${params.from} RTC Offer`);
+    const name = this.getPeerDisplayName(params.from);
+    this.addSystemEntry(`收到 ${name} 的 RTC Offer`);
   }
 
   @Bind
   private onReceiveIce(params: ServerEvent["SEND_ICE"]) {
-    this.addSystemEntry(`Received ${params.from} RTC ICE`);
+    const name = this.getPeerDisplayName(params.from);
+    this.addSystemEntry(`收到 ${name} 的 RTC ICE`);
   }
 
   @Bind
   private onReceiveAnswer(params: ServerEvent["SEND_ANSWER"]) {
-    this.addSystemEntry(`Received ${params.from} RTC Answer`);
+    const name = this.getPeerDisplayName(params.from);
+    this.addSystemEntry(`收到 ${name} 的 RTC Answer`);
   }
 
   @Bind
-  private onReceiveError(e: CallbackEvent) {
-    this.addSystemEntry(e.message);
+  private async onChatText(event: { from: string; to: string; data: string }) {
+    const { data } = event;
+    // Incoming chat messages are from peer
+    this.addTextEntry(data, TRANSFER_FROM.PEER);
   }
 
   @Bind

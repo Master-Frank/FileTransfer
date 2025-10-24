@@ -1,16 +1,16 @@
 import { createContext, useContext } from "react";
-import type { SignalService } from "../service/signal";
 import type { WebRTCService } from "../service/webrtc";
 import type { TransferService } from "../service/transfer";
 import type { StoreService } from "../service/store";
 import type { MessageService } from "../service/message";
+import type { SupabaseChatService } from "../service/chat";
 
 export type ContextType = {
-  signal: SignalService;
   rtc: WebRTCService;
   transfer: TransferService;
   store: StoreService;
   message: MessageService;
+  chat: SupabaseChatService;
 };
 
 export const GlobalContext = createContext<ContextType | null>(null);

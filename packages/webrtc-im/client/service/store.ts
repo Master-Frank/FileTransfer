@@ -9,4 +9,8 @@ export class StoreService {
   public peerIdAtom = atom<string>("");
   /** 用户列表 */
   public userListAtom = atom<Users>([]);
+  /** 设备名称（本地可自定义） */
+  public deviceNameAtom = atom<string>(
+    (typeof window !== "undefined" && localStorage.getItem("webrtc-im-device-name")) || ""
+  );
 }

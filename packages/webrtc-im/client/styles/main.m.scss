@@ -32,6 +32,9 @@ body {
   top: 50%;
   transform: translate(-50%, -50%);
   width: 80%;
+  /* 为顶部状态横幅预留空间，避免遮挡搜索框 */
+  padding-top: 32px;
+  box-sizing: border-box;
 }
 
 .github {
@@ -40,6 +43,34 @@ body {
   position: fixed;
   right: 12px;
   top: 6px;
+}
+
+/* Chat 状态横幅（固定于页面顶部，避免与内容层滚动混叠） */
+.chatBanner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  /* iOS/Android 安全区顶部内边距 */
+  padding: calc(env(safe-area-inset-top, 0px) + 8px) 12px 8px;
+  text-align: center;
+  font-weight: 500;
+  z-index: 999; /* 始终位于内容上方但不拦截点击 */
+  /* 横幅不拦截点击，避免影响搜索框交互 */
+  pointer-events: none;
+  /* 高度不超过 44px（不含安全区） */
+  line-height: 28px;
+  font-size: 0.95rem;
+}
+
+.chatConnected {
+  background-color: rgb(var(--arcoblue-2));
+  color: var(--color-text-1);
+}
+
+.chatDisconnected {
+  background-color: var(--color-danger-1);
+  color: var(--color-text-1);
 }
 
 // Mobile
@@ -54,5 +85,7 @@ body {
     max-width: unset;
     min-width: unset;
     width: 100%;
+    /* 为移动端顶部状态横幅预留 44px + 安全区 */
+    padding-top: calc(env(safe-area-inset-top, 0px) + 44px);
   }
 }

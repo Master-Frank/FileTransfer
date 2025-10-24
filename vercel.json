@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "packages/webrtc-im/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "installCommand": "pnpm install --frozen-lockfile",
+        "buildCommand": "pnpm build:webrtc-im",
+        "outputDirectory": "packages/webrtc-im/build/static"
+      }
+    }
+  ]
+}

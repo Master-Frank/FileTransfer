@@ -1,13 +1,13 @@
 # FileTransfer
 
 <p>
-<a href="https://github.com/WindrunnerMax/FileTransfer">GitHub</a>
+<a href="https://github.com">GitHub</a>
 <span>｜</span>
-<a href="https://webrtc.touchczy.top">DEMO</a>
+<a href="">DEMO</a
 <span>｜</span>
-<a href="https://github.com/WindrunnerMax/EveryDay/blob/master/Plugin/基于WebRTC的局域网文件传输.md">BLOG</a>
+<a href="https://github.com">BLOG</a>
 <span>｜</span>
-<a href="https://github.com/WindrunnerMax/FileTransfer/issues/3">FAQ</a>
+<a href="https://github.com">FAQ</a>
 </p>
 
 基于`WebRTC/WebSocket`的文件传输：
@@ -37,3 +37,32 @@ $ npm run deploy:webrtc
 $ npm run deploy:webrtc-im
 $ npm run deploy:websocket
 ```
+
+# TURN Server Setup (Coturn)
+
+To enable reliable WebRTC connections across NATs/firewalls, deploy a TURN server.
+
+## Quick Deploy with Docker
+
+1. On a public VM (Ubuntu/Debian), install Docker and Docker Compose.
+2. Copy `infra/turn` to the server and set `external-ip` in `turnserver.conf` to your public IP.
+3. Choose auth mode:
+   - Secret-based (TURN REST): keep `use-auth-secret` and set `static-auth-secret`.
+   - Static credentials: comment out `use-auth-secret` lines and use `lt-cred-mech` + `user=ftuser:ftpass`.
+4. Open firewall ports: `3478` TCP/UDP and optional `5349` TCP/UDP. If you set relay port range (`min-port`/`max-port`), open that range too.
+5. Run: `docker compose up -d` inside `infra/turn`.
+
+## Verify TURN
+Use https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/ with:
+- STUN/TURN URL: `turn:<your-public-ip>:3478` (or `turns:` on 5349)
+- Username/Password (if static creds), or generate short-term credentials for REST.
+
+## Configure App
+Set `TURN_ICE` in Vercel Environment Variables to a JSON string, for example:
+```
+[
+  {"urls":"stun:stun.l.google.com:19302"},
+  {"urls":"turn:<your-public-ip>:3478","username":"ftuser","credential":"ftpass"}
+]
+```
+For TURN REST mode, build ephemeral creds on the server and inject at runtime.

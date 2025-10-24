@@ -57,7 +57,7 @@
     flex-direction: row;
     height: unset;
     justify-content: space-between;
-    padding: 8px 20px;
+    padding: 8px 5vw calc(env(safe-area-inset-bottom, 0px) + 8px);
     width: 100%;
 
     * {

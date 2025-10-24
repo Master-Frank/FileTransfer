@@ -4,15 +4,14 @@ import type { ConnectionState } from "../../types/client";
 import { CONNECTION_STATE } from "../../types/client";
 import type { PromiseWithResolve } from "../utils/connection";
 import { createConnectReadyPromise } from "../utils/connection";
-import type { SignalService } from "./signal";
 import type { ServerEvent } from "../../types/signaling";
-import { CLINT_EVENT, SERVER_EVENT } from "../../types/signaling";
+import { SERVER_EVENT } from "../../types/signaling";
 import { Bind } from "@block-kit/utils";
-import { ERROR_CODE } from "../../types/server";
 import { atoms } from "../store/atoms";
 import { EventBus } from "../utils/event-bus";
 import type { WebRTCEvent } from "../../types/webrtc";
 import { WEBRTC_EVENT } from "../../types/webrtc";
+import type { SupabaseChatService } from "./chat";
 
 export class WebRTCService {
   /** 连接状态 */
@@ -26,109 +25,105 @@ export class WebRTCService {
   /** 事件总线 */
   public bus: EventBus<WebRTCEvent>;
 
-  constructor(private signal: SignalService) {
+  constructor(private chat: SupabaseChatService) {
     const rtc = this.createRTCPeerConnection();
     this.channel = rtc.channel;
     this.connection = rtc.connection;
     this.bus = new EventBus<WebRTCEvent>();
     this.connectedPromise = createConnectReadyPromise();
     this.stateAtom = atom<ConnectionState>(CONNECTION_STATE.READY);
-    this.signal.bus.on(SERVER_EVENT.SEND_OFFER, this.onReceiveOffer);
-    this.signal.bus.on(SERVER_EVENT.SEND_ICE, this.onReceiveIce);
-    this.signal.bus.on(SERVER_EVENT.SEND_ANSWER, this.onReceiveAnswer);
-    this.signal.socket.on("disconnect", this.disconnect);
+    this.chat.bus.on(SERVER_EVENT.SEND_OFFER, this.onReceiveOffer);
+    this.chat.bus.on(SERVER_EVENT.SEND_ICE, this.onReceiveIce);
+    this.chat.bus.on(SERVER_EVENT.SEND_ANSWER, this.onReceiveAnswer);
   }
 
   public destroy() {
-    this.bus.clear();
-    this.signal.destroy();
-    this.connectedPromise = null;
-    this.signal.bus.off(SERVER_EVENT.SEND_OFFER, this.onReceiveOffer);
-    this.signal.bus.off(SERVER_EVENT.SEND_ICE, this.onReceiveIce);
-    this.signal.bus.off(SERVER_EVENT.SEND_ANSWER, this.onReceiveAnswer);
-    this.signal.socket.off("disconnect", this.disconnect);
+    try {
+      this.connection?.close?.();
+    } catch (_) {}
+    atoms.set(this.stateAtom, CONNECTION_STATE.READY);
+    this.chat.bus.off(SERVER_EVENT.SEND_OFFER, this.onReceiveOffer);
+    this.chat.bus.off(SERVER_EVENT.SEND_ICE, this.onReceiveIce);
+    this.chat.bus.off(SERVER_EVENT.SEND_ANSWER, this.onReceiveAnswer);
   }
 
-  /**
-   * 发起连接
-   */
+  /** 连接 Peer */
   public async connect(peerUserId: string) {
-    atoms.set(this.stateAtom, CONNECTION_STATE.CONNECTING);
-    this.bus.emit(WEBRTC_EVENT.CONNECTING, null);
-    console.log("Send Offer To:", peerUserId);
-    this.connection.onicecandidate = async event => {
-      if (!event.candidate) return void 0;
-      console.log("Local ICE", event.candidate);
-      const payload = { ice: event.candidate, to: peerUserId };
-      this.signal.emit(CLINT_EVENT.SEND_ICE, payload);
+    const iceEnv = ((globalThis as any)?.process?.env?.TURN_ICE ?? (import.meta as any)?.env?.TURN_ICE ?? "") as string;
+    const iceServers = this.parseIceServers(iceEnv);
+    this.ensurePeerConnection(iceServers || undefined);
+    const connection = this.connection;
+    const offer = await connection.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: false });
+    await connection.setLocalDescription(offer);
+    await this.chat.sendOffer(peerUserId, offer, iceEnv);
+    connection.onicecandidate = e => {
+      const candidate = e.candidate;
+      if (candidate) {
+        this.chat.sendIce(peerUserId, candidate);
+      }
     };
-    const offer = await this.connection.createOffer();
-    await this.connection.setLocalDescription(offer);
-    console.log("Offer SDP", offer);
-    const payload = { sdp: offer, to: peerUserId };
-    this.signal.emit(CLINT_EVENT.SEND_OFFER, payload);
   }
 
-  /**
-   * 断开连接
-   */
   @Bind
   public async disconnect() {
-    this.channel && this.channel.close();
-    this.connection.close();
-    // 重新创建, 等待新的连接
-    const rtc = this.createRTCPeerConnection();
-    this.channel = rtc.channel;
-    this.connection = rtc.connection;
+    try {
+      this.connection?.close?.();
+      this.channel && (this.channel.onmessage = null);
+    } catch (_) {}
     atoms.set(this.stateAtom, CONNECTION_STATE.READY);
+    this.connectedPromise = createConnectReadyPromise();
+    this.bus.emit(WEBRTC_EVENT.CLOSE, new Event("close"));
   }
 
-  /**
-   * 等待连接
-   */
+  /** 等待数据通道打开 */
   public isConnected() {
-    if (!this.connectedPromise) return Promise.resolve();
-    return this.connectedPromise;
+    // 如果数据通道已打开，直接返回已完成的 Promise，避免挂起
+    if (this.channel && this.channel.readyState === "open") {
+      return Promise.resolve();
+    }
+    // 否则返回当前的连接准备 Promise（可能在连接中或断开后重置）
+    return this.connectedPromise || createConnectReadyPromise();
   }
 
-  private createRTCPeerConnection(ice?: string) {
-    const RTCPeerConnection =
-      // @ts-expect-error RTCPeerConnection
-      window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
-    // https://icetest.info/
-    // https://gist.github.com/mondain/b0ec1cf5f60ae726202e
-    // https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/
-    const defaultIces: RTCIceServer[] = [
-      {
-        urls: [
-          "stun:stun.services.mozilla.com",
-          "stun:stunserver2024.stunprotocol.org",
-          "stun:stun.l.google.com:19302",
-        ],
-      },
-    ];
+  private createRTCPeerConnection(ice?: RTCIceServer[]) {
+    const defaultIces: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
     const connection = new RTCPeerConnection({
-      iceServers: ice ? [{ urls: ice }] : defaultIces,
+      iceServers: ice && ice.length ? ice : defaultIces,
     });
     if (!this.connectedPromise) {
       this.connectedPromise = createConnectReadyPromise();
     }
     const channel = connection.createDataChannel("file-transfer", {
-      ordered: true, // 保证传输顺序
-      maxRetransmits: 50, // 最大重传次数
+      ordered: true,
+      maxRetransmits: 50,
     });
+    channel.onopen = this.onDataChannelOpen;
+    channel.onclose = this.onDataChannelClose;
+    channel.onmessage = e => this.bus.emit(WEBRTC_EVENT.MESSAGE, e);
+    channel.onerror = e => this.bus.emit(WEBRTC_EVENT.ERROR, e as RTCErrorEvent);
     connection.ondatachannel = event => {
-      const channel = event.channel;
-      channel.onopen = this.onDataChannelOpen;
-      channel.onclose = this.onDataChannelClose;
-      channel.onmessage = e => this.bus.emit(WEBRTC_EVENT.MESSAGE, e);
-      channel.onerror = e => this.bus.emit(WEBRTC_EVENT.ERROR, e as RTCErrorEvent);
+      const incoming = event.channel;
+      this.channel = incoming;
+      incoming.onopen = this.onDataChannelOpen;
+      incoming.onclose = this.onDataChannelClose;
+      incoming.onmessage = e => this.bus.emit(WEBRTC_EVENT.MESSAGE, e);
+      incoming.onerror = e => this.bus.emit(WEBRTC_EVENT.ERROR, e as RTCErrorEvent);
     };
     connection.onconnectionstatechange = () => {
       if (channel.readyState === "closed") return void 0;
       this.onConnectionStateChange(connection);
     };
     return { connection, channel };
+  }
+
+  // 新增：确保在使用前拥有一个可用的 RTCPeerConnection
+  private ensurePeerConnection(ice?: RTCIceServer[]) {
+    const conn = this.connection;
+    if (!conn || conn.signalingState === "closed" || conn.connectionState === "closed") {
+      const rtc = this.createRTCPeerConnection(ice);
+      this.connection = rtc.connection;
+      this.channel = rtc.channel;
+    }
   }
 
   @Bind
@@ -160,38 +155,23 @@ export class WebRTCService {
     ) {
       atoms.set(this.stateAtom, CONNECTION_STATE.READY);
     }
-    this.bus.emit(WEBRTC_EVENT.STATE_CHANGE, connection);
   }
 
   @Bind
   private async onReceiveOffer(params: ServerEvent["SEND_OFFER"]) {
-    const { sdp, from } = params;
+    const { sdp, from, ice } = params as any;
     console.log("Receive Offer From:", from, sdp);
-    if (this.connection.currentLocalDescription || this.connection.currentRemoteDescription) {
-      this.signal.emit(CLINT_EVENT.SEND_ERROR, {
-        to: from,
-        code: ERROR_CODE.BUSY,
-        message: `P2P Peer User ${this.signal.id} Is Busy`,
-      });
-      return void 0;
-    }
-    this.connection.onicecandidate = async event => {
-      if (!event.candidate) return void 0;
-      console.log("Local ICE", event.candidate);
-      const payload = { from: this.signal.id, ice: event.candidate, to: from };
-      this.signal.emit(CLINT_EVENT.SEND_ICE, payload);
-    };
+    const iceServers = this.parseIceServers(ice);
+    this.ensurePeerConnection(iceServers || undefined);
     await this.connection.setRemoteDescription(sdp);
     const answer = await this.connection.createAnswer();
     await this.connection.setLocalDescription(answer);
-    console.log("Answer SDP", answer);
-    const payload = { from: this.signal.id, sdp: answer, to: from };
-    this.signal.emit(CLINT_EVENT.SEND_ANSWER, payload);
+    await this.chat.sendAnswer(from, answer);
   }
 
   @Bind
   private async onReceiveIce(params: ServerEvent["SEND_ICE"]) {
-    const { ice: sdp, from } = params;
+    const { ice: sdp, from } = params as any;
     console.log("Receive ICE From:", from, sdp);
     await this.connection.addIceCandidate(sdp);
   }
@@ -203,5 +183,17 @@ export class WebRTCService {
     if (!this.connection.currentRemoteDescription) {
       this.connection.setRemoteDescription(sdp);
     }
+  }
+
+  private parseIceServers(env?: string): RTCIceServer[] | null {
+    if (!env) return null;
+    try {
+      const parsed: any = JSON.parse(env);
+      if (Array.isArray(parsed)) return parsed as RTCIceServer[];
+      if (typeof parsed === "object" && parsed.urls) return [parsed as RTCIceServer];
+    } catch {
+      if (typeof env === "string" && env) return [{ urls: env }];
+    }
+    return null;
   }
 }
