@@ -12,7 +12,7 @@ import { CONNECTION_STATE, DEVICE_TYPE } from "../../types/client";
 import { cs } from "@block-kit/utils";
 
 export const Message: FC = () => {
-  const { message, store, rtc, transfer } = useGlobalContext();
+  const { message, store, rtc, transfer, connectionManager } = useGlobalContext();
   const { isMobile } = useIsMobile();
   const list = useAtomValue(message.listAtom);
   const rtcState = useAtomValue(rtc.stateAtom);
@@ -58,15 +58,25 @@ export const Message: FC = () => {
     const value = text.trim();
     if (!value) return;
     setText("");
-    if (!isRTCConnected) return ArcoMessage.info("受对方网络影响，无法建立连接，请稍后重试！");
-    await transfer.sendTextMessage(value);
+    
+    // 使用ConnectionManager智能选择传输方式
+    if (peerId) {
+      await connectionManager.sendTextMessage(value, peerId);
+    } else {
+      ArcoMessage.info("请先选择联系人！");
+    }
   };
 
   const handleSendFile = async () => {
     const files = await pickFiles();
     if (!files || !files.length) return;
-    if (!isRTCConnected) return ArcoMessage.info("受对方网络影响，无法建立连接，请稍后重试！");
-    await transfer.startSendFileList(files);
+    
+    // 使用ConnectionManager智能选择传输方式
+    if (peerId) {
+      await connectionManager.sendFiles(Array.from(files), peerId);
+    } else {
+      ArcoMessage.info("请先选择联系人！");
+    }
   };
 
   const handleDownload = async (id: string, name: string) => {
@@ -224,7 +234,7 @@ export const Message: FC = () => {
             shape="round"
             icon={<IconUpload />}
             onClick={handleSendFile}
-            disabled={!isRTCConnected}
+            disabled={!peerId}
             style={{ marginLeft: 6 }}
           >
             选择文件
@@ -232,11 +242,11 @@ export const Message: FC = () => {
         </div>
         <Input.TextArea
           className={styles.textarea}
-          placeholder={isRTCConnected ? "输入文本..." : "连接中，稍后再试"}
+          placeholder={peerId ? "输入文本..." : "请先选择联系人"}
           value={text}
           onChange={setText}
           autoSize={{ minRows: isMobile ? 2 : 3, maxRows: 4 }}
-          disabled={!isRTCConnected}
+          disabled={!peerId}
           onPressEnter={(e) => {
             if (!e.shiftKey) {
               e.preventDefault();
@@ -244,7 +254,7 @@ export const Message: FC = () => {
             }
           }}
         />
-        <div className={cs(styles.send, !isRTCConnected && styles.disabled)} onClick={isRTCConnected ? handleSendText : undefined}>
+        <div className={cs(styles.send, !peerId && styles.disabled)} onClick={peerId ? handleSendText : undefined}>
           <IconSend />
         </div>
       </div>

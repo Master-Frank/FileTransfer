@@ -8,6 +8,10 @@ const CLINT_EVENT_BASE = [
   "SEND_RESPONSE",
   "SEND_UNPEER",
   "SEND_MESSAGE",
+  // WebRTC signaling events
+  "SEND_WEBRTC_OFFER",
+  "SEND_WEBRTC_ANSWER",
+  "SEND_WEBRTC_ICE",
 ] as const;
 
 const SERVER_EVENT_BASE = [
@@ -18,6 +22,10 @@ const SERVER_EVENT_BASE = [
   "FORWARD_RESPONSE",
   "FORWARD_UNPEER",
   "FORWARD_MESSAGE",
+  // WebRTC signaling events
+  "FORWARD_WEBRTC_OFFER",
+  "FORWARD_WEBRTC_ANSWER",
+  "FORWARD_WEBRTC_ICE",
 ] as const;
 
 export const CLINT_EVENT = CLINT_EVENT_BASE.reduce(
@@ -73,6 +81,22 @@ export interface SocketEventParams {
     target: string;
     message: MessageType;
   };
+  // WebRTC signaling events
+  [CLINT_EVENT.SEND_WEBRTC_OFFER]: {
+    origin: string;
+    target: string;
+    offer: RTCSessionDescriptionInit;
+  };
+  [CLINT_EVENT.SEND_WEBRTC_ANSWER]: {
+    origin: string;
+    target: string;
+    answer: RTCSessionDescriptionInit;
+  };
+  [CLINT_EVENT.SEND_WEBRTC_ICE]: {
+    origin: string;
+    target: string;
+    candidate: RTCIceCandidateInit;
+  };
 
   // SERVER
   [SERVER_EVENT.JOINED_ROOM]: {
@@ -106,5 +130,21 @@ export interface SocketEventParams {
     origin: string;
     target: string;
     message: MessageType;
+  };
+  // WebRTC signaling events
+  [SERVER_EVENT.FORWARD_WEBRTC_OFFER]: {
+    origin: string;
+    target: string;
+    offer: RTCSessionDescriptionInit;
+  };
+  [SERVER_EVENT.FORWARD_WEBRTC_ANSWER]: {
+    origin: string;
+    target: string;
+    answer: RTCSessionDescriptionInit;
+  };
+  [SERVER_EVENT.FORWARD_WEBRTC_ICE]: {
+    origin: string;
+    target: string;
+    candidate: RTCIceCandidateInit;
   };
 }

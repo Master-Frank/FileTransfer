@@ -35,6 +35,7 @@ export class MessageService {
     this.transfer.bus.on(TRANSFER_EVENT.FILE_PROCESS, this.onFileProcess);
     // Supabase 聊天与信令事件（仅用于日志显示）
     this.chat.bus.on("TEXT", this.onChatText);
+    this.chat.bus.on("SUPABASE_FILE_MESSAGE", this.onSupabaseFileMessage);
     this.chat.bus.on(SERVER_EVENT.SEND_OFFER, this.onReceiveOffer);
     this.chat.bus.on(SERVER_EVENT.SEND_ICE, this.onReceiveIce);
     this.chat.bus.on(SERVER_EVENT.SEND_ANSWER, this.onReceiveAnswer);
@@ -48,6 +49,7 @@ export class MessageService {
     this.transfer.bus.off(TRANSFER_EVENT.FILE_START, this.onFileStart);
     this.transfer.bus.off(TRANSFER_EVENT.FILE_PROCESS, this.onFileProcess);
     this.chat.bus.off("TEXT", this.onChatText as any);
+    this.chat.bus.off("SUPABASE_FILE_MESSAGE", this.onSupabaseFileMessage as any);
     this.chat.bus.off(SERVER_EVENT.SEND_OFFER, this.onReceiveOffer);
     this.chat.bus.off(SERVER_EVENT.SEND_ICE, this.onReceiveIce);
     this.chat.bus.off(SERVER_EVENT.SEND_ANSWER, this.onReceiveAnswer);
@@ -135,6 +137,37 @@ export class MessageService {
     const { data } = event;
     // Incoming chat messages are from peer
     this.addTextEntry(data, TRANSFER_FROM.PEER);
+  }
+
+  @Bind
+  private async onSupabaseFileMessage(event: { from: string; message: any }) {
+    const { from, message } = event;
+    const name = this.getPeerDisplayName(from);
+    
+    // 根据消息类型处理不同的Supabase文件消息
+    switch (message.type) {
+      case 'TEXT':
+        this.addTextEntry(message.text, TRANSFER_FROM.PEER);
+        break;
+      case 'FILE_START':
+        this.addEntry({
+          key: TRANSFER_TYPE.FILE,
+          id: message.fileId,
+          name: message.fileName,
+          size: message.fileSize,
+          process: 0,
+          from: TRANSFER_FROM.PEER
+        });
+        break;
+      case 'FILE_CHUNK':
+        // 文件块接收处理现在由WebRTC或Supabase直接处理
+        break;
+      case 'FILE_FINISH':
+        this.addSystemEntry(`通过 Supabase 接收文件 ${message.fileName} 完成`);
+        break;
+      default:
+        this.addSystemEntry(`收到 ${name} 的 Supabase 消息: ${message.type}`);
+    }
   }
 
   @Bind

@@ -15,6 +15,7 @@ import { TransferService } from "./service/transfer";
 import { StoreService } from "./service/store";
 import { MessageService } from "./service/message";
 import { SupabaseChatService } from "./service/chat";
+import { ConnectionManager } from "./service/connection-manager";
 
 const App: FC = () => {
   const context = useMemo(() => {
@@ -23,7 +24,13 @@ const App: FC = () => {
     const rtc = new WebRTCService(chat);
     const transfer = new TransferService(rtc);
     const message = new MessageService(rtc, store, transfer, chat);
-    return { rtc, transfer, store, message, chat };
+    const connectionManager = new ConnectionManager({
+      supabaseChatService: chat,
+      webrtcService: rtc,
+      messageService: message,
+      transferService: transfer
+    });
+    return { rtc, transfer, store, message, chat, connectionManager };
   }, []);
 
   useDarkTheme();

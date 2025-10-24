@@ -12,6 +12,7 @@ import { EventBus } from "../utils/event-bus";
 import type { WebRTCEvent } from "../../types/webrtc";
 import { WEBRTC_EVENT } from "../../types/webrtc";
 import type { SupabaseChatService } from "./chat";
+import type { WebSocketSignalingService } from "./websocket-signaling";
 
 export class WebRTCService {
   /** 连接状态 */
@@ -24,6 +25,8 @@ export class WebRTCService {
   public connection: RTCPeerConnection;
   /** 事件总线 */
   public bus: EventBus<WebRTCEvent>;
+  /** WebSocket信令服务 */
+  private websocketSignaling?: WebSocketSignalingService;
 
   constructor(private chat: SupabaseChatService) {
     const rtc = this.createRTCPeerConnection();
@@ -37,6 +40,17 @@ export class WebRTCService {
     this.chat.bus.on(SERVER_EVENT.SEND_ANSWER, this.onReceiveAnswer);
   }
 
+  /**
+   * 设置WebSocket信令服务（用于非局域网连接）
+   */
+  public setWebSocketSignaling(signaling: WebSocketSignalingService) {
+    this.websocketSignaling = signaling;
+    // 监听WebSocket信令事件
+    this.websocketSignaling.bus.on("RECEIVE_OFFER", this.onWebSocketReceiveOffer);
+    this.websocketSignaling.bus.on("RECEIVE_ANSWER", this.onWebSocketReceiveAnswer);
+    this.websocketSignaling.bus.on("RECEIVE_ICE", this.onWebSocketReceiveIce);
+  }
+
   public destroy() {
     try {
       this.connection?.close?.();
@@ -45,6 +59,13 @@ export class WebRTCService {
     this.chat.bus.off(SERVER_EVENT.SEND_OFFER, this.onReceiveOffer);
     this.chat.bus.off(SERVER_EVENT.SEND_ICE, this.onReceiveIce);
     this.chat.bus.off(SERVER_EVENT.SEND_ANSWER, this.onReceiveAnswer);
+    
+    // 清理WebSocket信令监听器
+    if (this.websocketSignaling) {
+      this.websocketSignaling.bus.off("RECEIVE_OFFER", this.onWebSocketReceiveOffer);
+      this.websocketSignaling.bus.off("RECEIVE_ANSWER", this.onWebSocketReceiveAnswer);
+      this.websocketSignaling.bus.off("RECEIVE_ICE", this.onWebSocketReceiveIce);
+    }
   }
 
   /** 连接 Peer */
@@ -55,13 +76,27 @@ export class WebRTCService {
     const connection = this.connection;
     const offer = await connection.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: false });
     await connection.setLocalDescription(offer);
-    await this.chat.sendOffer(peerUserId, offer, iceEnv);
-    connection.onicecandidate = e => {
-      const candidate = e.candidate;
-      if (candidate) {
-        this.chat.sendIce(peerUserId, candidate);
-      }
-    };
+    
+    // 根据是否有WebSocket信令服务决定使用哪种信令方式
+    if (this.websocketSignaling) {
+      // 使用WebSocket信令（非局域网）
+      await this.websocketSignaling.sendOffer(peerUserId, offer);
+      connection.onicecandidate = e => {
+        const candidate = e.candidate;
+        if (candidate && this.websocketSignaling) {
+          this.websocketSignaling.sendIceCandidate(peerUserId, candidate);
+        }
+      };
+    } else {
+      // 使用Supabase信令（局域网）
+      await this.chat.sendOffer(peerUserId, offer, iceEnv);
+      connection.onicecandidate = e => {
+        const candidate = e.candidate;
+        if (candidate) {
+          this.chat.sendIce(peerUserId, candidate);
+        }
+      };
+    }
   }
 
   @Bind
@@ -184,6 +219,44 @@ export class WebRTCService {
     if (!this.connection.currentRemoteDescription) {
       this.connection.setRemoteDescription(sdp);
     }
+  }
+
+  // WebSocket信令处理方法
+  @Bind
+  private async onWebSocketReceiveOffer(params: { from: string; offer: RTCSessionDescriptionInit }) {
+    const { from, offer } = params;
+    console.log("WebSocket: Receive Offer From:", from, offer);
+    const iceEnv = ((globalThis as any)?.process?.env?.TURN_ICE ?? (import.meta as any)?.env?.TURN_ICE ?? "") as string;
+    const iceServers = this.parseIceServers(iceEnv);
+    this.ensurePeerConnection(iceServers || undefined);
+    await this.connection.setRemoteDescription(offer);
+    const answer = await this.connection.createAnswer();
+    await this.connection.setLocalDescription(answer);
+    if (this.websocketSignaling) {
+      await this.websocketSignaling.sendAnswer(from, answer);
+    }
+  }
+
+  @Bind
+  private async onWebSocketReceiveAnswer(params: { from: string; answer: RTCSessionDescriptionInit }) {
+    const { from, answer } = params;
+    console.log("WebSocket: Receive Answer From:", from, answer);
+    if (!this.connection.currentRemoteDescription) {
+      this.connection.setRemoteDescription(answer);
+    }
+  }
+
+  @Bind
+  private async onWebSocketReceiveIce(params: { from: string; candidate: RTCIceCandidateInit }) {
+    const { from, candidate } = params;
+    console.log("WebSocket: Receive ICE From:", from, candidate);
+    await this.connection.addIceCandidate(candidate);
+  }
+
+  /** 检查是否有活跃的WebRTC连接 */
+  public hasConnection(targetUserId?: string): boolean {
+    const currentState = atoms.get(this.stateAtom);
+    return currentState === CONNECTION_STATE.CONNECTED;
   }
 
   private parseIceServers(env?: string): RTCIceServer[] | null {

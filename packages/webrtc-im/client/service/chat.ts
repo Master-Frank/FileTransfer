@@ -157,6 +157,7 @@ export class SupabaseChatService {
         this.bus.emit(SERVER_EVENT.SEND_OFFER, data);
       }
     });
+
     this.channel.on("broadcast", { event: SERVER_EVENT.SEND_ANSWER }, (payload: { payload: ServerEvent["SEND_ANSWER"] }) => {
       const data = payload?.payload;
       if (!data) return;
@@ -164,11 +165,21 @@ export class SupabaseChatService {
         this.bus.emit(SERVER_EVENT.SEND_ANSWER, data);
       }
     });
+
     this.channel.on("broadcast", { event: SERVER_EVENT.SEND_ICE }, (payload: { payload: ServerEvent["SEND_ICE"] }) => {
       const data = payload?.payload;
       if (!data) return;
       if (data.to === this.selfId) {
         this.bus.emit(SERVER_EVENT.SEND_ICE, data);
+      }
+    });
+
+    // Broadcast handler: Supabase file messages
+    this.channel.on("broadcast", { event: "SUPABASE_FILE_MESSAGE" }, (payload: { payload: any }) => {
+      const data = payload?.payload;
+      if (!data) return;
+      if (data.to === this.selfId) {
+        this.bus.emit("SUPABASE_FILE_MESSAGE", { from: data.from, message: data.message });
       }
     });
 
@@ -283,10 +294,17 @@ export class SupabaseChatService {
   }
 
   /** 发送文本消息 */
-  public async sendText(to: string, data: string) {
+  public async sendText(to: string, text: string) {
     if (!this.channel) return;
-    const payload: ChatTextPayload = { from: this.selfId, to, data };
+    const payload: ChatTextPayload = { from: this.selfId, to, text };
     await this.channel.send({ type: "broadcast", event: "TEXT", payload });
+  }
+
+  /** 发送Supabase文件消息 */
+  public async sendSupabaseMessage(to: string, message: any) {
+    if (!this.channel) return;
+    const payload = { from: this.selfId, to, message };
+    await this.channel.send({ type: "broadcast", event: "SUPABASE_FILE_MESSAGE", payload });
   }
 
   /** 发送 WebRTC Offer */
@@ -306,7 +324,7 @@ export class SupabaseChatService {
   }
 
   /** 发送 WebRTC ICE */
-  public async sendIce(to: string, ice: ICE) {
+  public async sendIce(to: string, ice: RTCIceCandidate) {
     if (!this.channel) return;
     const payload: ServerEvent["SEND_ICE"] = { from: this.selfId, to, ice };
     await this.channel.send({ type: "broadcast", event: SERVER_EVENT.SEND_ICE, payload });

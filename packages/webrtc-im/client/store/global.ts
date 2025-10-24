@@ -4,6 +4,7 @@ import type { TransferService } from "../service/transfer";
 import type { StoreService } from "../service/store";
 import type { MessageService } from "../service/message";
 import type { SupabaseChatService } from "../service/chat";
+import type { ConnectionManager } from "../service/connection-manager";
 
 export type ContextType = {
   rtc: WebRTCService;
@@ -11,6 +12,7 @@ export type ContextType = {
   store: StoreService;
   message: MessageService;
   chat: SupabaseChatService;
+  connectionManager: ConnectionManager;
 };
 
 export const GlobalContext = createContext<ContextType | null>(null);

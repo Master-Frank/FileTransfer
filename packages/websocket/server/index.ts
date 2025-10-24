@@ -75,6 +75,37 @@ io.on("connection", socket => {
     }
   });
 
+  // WebRTC signaling event handlers
+  socket.on(CLINT_EVENT.SEND_WEBRTC_OFFER, ({ origin, offer, target }) => {
+    // 验证
+    if (authenticate.get(socket) !== origin) return void 0;
+    // 转发WebRTC Offer
+    const targetSocket = room.get(target)?.socket;
+    if (targetSocket) {
+      targetSocket.emit(SERVER_EVENT.FORWARD_WEBRTC_OFFER, { origin, offer, target });
+    }
+  });
+
+  socket.on(CLINT_EVENT.SEND_WEBRTC_ANSWER, ({ origin, answer, target }) => {
+    // 验证
+    if (authenticate.get(socket) !== origin) return void 0;
+    // 转发WebRTC Answer
+    const targetSocket = room.get(target)?.socket;
+    if (targetSocket) {
+      targetSocket.emit(SERVER_EVENT.FORWARD_WEBRTC_ANSWER, { origin, answer, target });
+    }
+  });
+
+  socket.on(CLINT_EVENT.SEND_WEBRTC_ICE, ({ origin, candidate, target }) => {
+    // 验证
+    if (authenticate.get(socket) !== origin) return void 0;
+    // 转发WebRTC ICE Candidate
+    const targetSocket = room.get(target)?.socket;
+    if (targetSocket) {
+      targetSocket.emit(SERVER_EVENT.FORWARD_WEBRTC_ICE, { origin, candidate, target });
+    }
+  });
+
   socket.on(CLINT_EVENT.SEND_UNPEER, ({ origin, target }) => {
     // 验证
     if (authenticate.get(socket) !== origin) return void 0;
