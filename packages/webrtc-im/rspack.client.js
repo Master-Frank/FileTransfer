@@ -37,6 +37,9 @@ module.exports = {
       // Force cross-fetch to use browser polyfill to avoid node core modules
       "cross-fetch": "cross-fetch/dist/browser-polyfill.js",
     },
+    fallback: {
+      "process": require.resolve("process/browser"),
+    },
   },
   builtins: {
     define: {
@@ -51,6 +54,9 @@ module.exports = {
       // TURN ICE for WebRTC
       "process.env.TURN_ICE": JSON.stringify(process.env.TURN_ICE || ""),
       "import.meta.env.TURN_ICE": JSON.stringify(process.env.TURN_ICE || ""),
+    },
+    provide: {
+      process: "process/browser",
     },
     pluginImport: [
       {

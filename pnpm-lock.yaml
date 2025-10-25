@@ -160,13 +160,16 @@ importers:
       cross-fetch:
         specifier: ^4.0.0
         version: 4.1.0
+      process:
+        specifier: ^0.11.10
+        version: 0.11.10
     devDependencies:
       '@arco-design/web-react':
         specifier: 2.56.1
         version: 2.56.1(@types/react@17.0.2)(react-dom@17.0.2(react@17.0.2))(react@17.0.2)
       '@rspack/cli':
         specifier: 0.2.5
-        version: 0.2.5(react-refresh@0.14.0)(type-fest@0.18.1)(webpack-dev-server@4.13.1(webpack@5.76.0))(webpack@5.76.0)
+        version: 0.2.5(@types/express@4.17.21)(react-refresh@0.14.0)(type-fest@0.18.1)(webpack-dev-server@4.13.1(webpack@5.76.0))(webpack@5.76.0)
       '@rspack/dev-client':
         specifier: ^0.4.1
         version: 0.4.1(react-refresh@0.14.0)(type-fest@0.18.1)(webpack-dev-server@4.13.1(webpack@5.76.0))(webpack@5.76.0)
@@ -3097,6 +3100,10 @@ packages:
   process-nextick-args@2.0.1:
     resolution: {integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==}
 
+  process@0.11.10:
+    resolution: {integrity: sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A==}
+    engines: {node: '>= 0.6.0'}
+
   progress@2.0.3:
     resolution: {integrity: sha512-7PiHtLll5LdnKIMw100I+8xJXR5gW2QwWYkT6iJva0bXitZKa/XMrSbdmg3r2Xnaidz9Qumd0VPaMrZlF9V9sA==}
     engines: {node: '>=0.4.0'}
@@ -4518,11 +4525,11 @@ snapshots:
       - webpack-hot-middleware
       - webpack-plugin-serve
 
-  '@rspack/cli@0.2.5(react-refresh@0.14.0)(type-fest@0.18.1)(webpack-dev-server@4.13.1(webpack@5.76.0))(webpack@5.76.0)':
+  '@rspack/cli@0.2.5(@types/express@4.17.21)(react-refresh@0.14.0)(type-fest@0.18.1)(webpack-dev-server@4.13.1(webpack@5.76.0))(webpack@5.76.0)':
     dependencies:
       '@discoveryjs/json-ext': 0.5.7
       '@rspack/core': 0.2.5(type-fest@0.18.1)(webpack-dev-server@4.13.1(webpack@5.76.0))(webpack@5.76.0)
-      '@rspack/dev-server': 0.2.5(@rspack/core@0.2.5(type-fest@0.18.1)(webpack-dev-server@4.13.1(webpack@5.76.0))(webpack@5.76.0))(react-refresh@0.14.0)(type-fest@0.18.1)
+      '@rspack/dev-server': 0.2.5(@rspack/core@0.2.5(type-fest@0.18.1)(webpack-dev-server@4.13.1(webpack@5.76.0))(webpack@5.76.0))(@types/express@4.17.21)(react-refresh@0.14.0)(type-fest@0.18.1)
       colorette: 2.0.19
       interpret: 3.1.1
       rechoir: 0.8.0
@@ -4674,7 +4681,7 @@ snapshots:
       - webpack-hot-middleware
       - webpack-plugin-serve
 
-  '@rspack/dev-server@0.2.5(@rspack/core@0.2.5(type-fest@0.18.1)(webpack-dev-server@4.13.1(webpack@5.76.0))(webpack@5.76.0))(react-refresh@0.14.0)(type-fest@0.18.1)':
+  '@rspack/dev-server@0.2.5(@rspack/core@0.2.5(type-fest@0.18.1)(webpack-dev-server@4.13.1(webpack@5.76.0))(webpack@5.76.0))(@types/express@4.17.21)(react-refresh@0.14.0)(type-fest@0.18.1)':
     dependencies:
       '@rspack/core': 0.2.5(type-fest@0.18.1)(webpack-dev-server@4.13.1(webpack@5.76.0))(webpack@5.76.0)
       '@rspack/dev-client': 0.2.5(react-refresh@0.14.0)(type-fest@0.18.1)(webpack-dev-server@4.13.1(webpack@5.76.0))(webpack@5.76.0)
@@ -7507,6 +7514,8 @@ snapshots:
   prettier@2.4.1: {}
 
   process-nextick-args@2.0.1: {}
+
+  process@0.11.10: {}
 
   progress@2.0.3: {}
 

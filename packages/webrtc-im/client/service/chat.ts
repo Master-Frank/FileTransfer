@@ -130,9 +130,10 @@ export class SupabaseChatService {
     // 使用 sessionId 或随机 id 作为 presence key
     this.selfId = getSessionId() || getId(12);
 
-    const url = process.env.SUPABASE_URL as string;
-    const key = process.env.SUPABASE_ANON as string;
-    const channelName = (process.env.SUPABASE_CHANNEL as string) || "webrtc-im";
+    // 直接使用环境变量值，避免 process.env 在浏览器中的问题
+    const url = "https://wosurlldtvphzshxdewn.supabase.co";
+    const key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indvc3VybGxkdHZwaHpzaHhkZXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyODM2MzMsImV4cCI6MjA3Njg1OTYzM30.FtfDz51yPEUu4y33NNPP4WK4DSaf6y9gFw6OhfBHbnc";
+    const channelName = "webrtc-im";
     if (!url || !key) return void 0;
     this.client = createClientFn(url, key);
     this.channel = this.client.channel(channelName, { config: { presence: { key: this.selfId } } });
