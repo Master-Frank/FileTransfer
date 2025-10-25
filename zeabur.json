@@ -1,0 +1,19 @@
+{
+  "name": "FileTransfer-WebRTC",
+  "services": [
+    {
+      "name": "webrtc-im",
+      "buildCommand": "pnpm build:webrtc-im",
+      "outputDirectory": "packages/webrtc-im/build/static",
+      "installCommand": "pnpm install --frozen-lockfile",
+      "rootDirectory": ".",
+      "framework": "static",
+      "env": {
+        "SUPABASE_URL": "https://wosurlldtvphzshxdewn.supabase.co",
+        "SUPABASE_ANON": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indvc3VybGxkdHZwaHpzaHhkZXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyODM2MzMsImV4cCI6MjA3Njg1OTYzM30.FtfDz51yPEUu4y33NNPP4WK4DSaf6y9gFw6OhfBHbnc",
+        "SUPABASE_CHANNEL": "webrtc-im",
+        "TURN_ICE": "[]"
+      }
+    }
+  ]
+}

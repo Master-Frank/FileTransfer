@@ -38,6 +38,32 @@ $ npm run deploy:webrtc-im
 $ npm run deploy:websocket
 ```
 
+### Zeabur
+
+1. **推送代码到 GitHub**
+   ```bash
+   git add .
+   git commit -m "Add Zeabur deployment configuration"
+   git push origin main
+   ```
+
+2. **在 Zeabur 控制台部署**
+   - 访问 [Zeabur](https://zeabur.com)
+   - 连接你的 GitHub 仓库
+   - 选择 `FileTransfer` 项目
+   - Zeabur 会自动检测 `Dockerfile` 并进行容器化部署
+
+3. **配置环境变量**
+   在 Zeabur 控制台中设置以下环境变量：
+   - `SUPABASE_URL`: 你的 Supabase 项目 URL
+   - `SUPABASE_ANON`: Supabase 匿名密钥
+   - `SUPABASE_CHANNEL`: WebRTC 信令频道名称
+   - `TURN_ICE`: TURN 服务器配置（JSON 字符串）
+
+4. **自定义域名**（可选）
+   - 在 Zeabur 控制台中绑定自定义域名
+   - 配置 HTTPS 证书（Zeabur 自动提供）
+
 # TURN Server Setup (Coturn)
 
 To enable reliable WebRTC connections across NATs/firewalls, deploy a TURN server.
