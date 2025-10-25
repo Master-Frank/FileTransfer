@@ -1,13 +1,7 @@
 {
   "name": "webrtc-im",
-  "services": [
-    {
-      "name": "webrtc-im",
-      "buildCommand": "pnpm install && pnpm build",
-      "startCommand": "pnpm start",
-      "environment": "nodejs",
-      "rootDirectory": ".",
-      "outputDirectory": "packages/webrtc-im/build/static"
-    }
-  ]
+  "buildCommand": "pnpm install && pnpm build",
+  "startCommand": "pnpm start",
+  "environment": "nodejs",
+  "rootDirectory": "."
 }
