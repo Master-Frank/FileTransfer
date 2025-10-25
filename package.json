@@ -1,6 +1,7 @@
 {
   "name": "file-transfer",
   "version": "1.0.0",
+  "main": "server.js",
   "scripts": {
     "dev:webrtc": "pnpm --filter @ft/webrtc run dev",
     "build:webrtc": "pnpm --filter @ft/webrtc run build",
