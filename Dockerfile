@@ -25,7 +25,7 @@ RUN pnpm build:webrtc-im
 FROM nginx:alpine
 
 # 复制构建产物到 nginx 目录 (修复路径问题)
-COPY --from=builder /app/packages/webrtc-im/build/static /usr/share/nginx/html
+COPY --from=builder /app/packages/webrtc-im/build/ /usr/share/nginx/html/
 
 # 创建自定义 nginx 配置文件
 RUN cat > /etc/nginx/conf.d/default.conf << 'EOF'
@@ -34,7 +34,7 @@ server {
     server_name localhost;
     
     location / {
-        root /usr/share/nginx/html;
+        root /usr/share/nginx/html/static;
         index index.html index.htm;
         try_files $uri $uri/ /index.html;
     }
