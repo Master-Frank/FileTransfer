@@ -24,11 +24,11 @@ RUN pnpm build:webrtc-im
 # 使用 nginx 作为生产环境
 FROM nginx:alpine
 
-# 复制构建产物到 nginx 目录
+# 复制构建产物到 nginx 目录 (修复路径问题)
 COPY --from=builder /app/packages/webrtc-im/build/static /usr/share/nginx/html
 
-# 复制 nginx 配置
-COPY <<EOF /etc/nginx/conf.d/default.conf
+# 创建自定义 nginx 配置文件
+RUN cat > /etc/nginx/conf.d/default.conf << 'EOF'
 server {
     listen 80;
     server_name localhost;
@@ -36,7 +36,7 @@ server {
     location / {
         root /usr/share/nginx/html;
         index index.html index.htm;
-        try_files \$uri \$uri/ /index.html;
+        try_files $uri $uri/ /index.html;
     }
     
     # 启用 gzip 压缩
@@ -50,6 +50,14 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
+    
+    # 添加安全头
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    
+    # 错误页面
+    error_page 404 /index.html;
 }
 EOF
 
