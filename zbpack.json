@@ -1,0 +1,6 @@
+{
+  "app_dir": ".",
+  "build_command": "pnpm install --frozen-lockfile && pnpm build",
+  "start_command": "node server.js",
+  "cache": false
+}
