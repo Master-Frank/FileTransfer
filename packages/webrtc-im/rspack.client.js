@@ -45,9 +45,9 @@ module.exports = {
       "process.env.PUBLIC_PATH": JSON.stringify(PUBLIC_PATH),
       "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
       // Supabase client envs
-      "process.env.SUPABASE_URL": JSON.stringify(process.env.SUPABASE_URL || ""),
-      "process.env.SUPABASE_ANON": JSON.stringify(process.env.SUPABASE_ANON || ""),
-      "process.env.SUPABASE_CHANNEL": JSON.stringify(process.env.SUPABASE_CHANNEL || "webrtc-im"),
+      "process.env.SUPABASE_URL": JSON.stringify(process.env.VITE_SUPABASE_URL || ""),
+      "process.env.SUPABASE_ANON": JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY || ""),
+      "process.env.SUPABASE_CHANNEL": JSON.stringify(process.env.VITE_SUPABASE_CHANNEL || "webrtc-im"),
       // TURN ICE for WebRTC
       "process.env.TURN_ICE": JSON.stringify(process.env.TURN_ICE || ""),
       "import.meta.env.TURN_ICE": JSON.stringify(process.env.TURN_ICE || ""),
