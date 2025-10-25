@@ -1,19 +1,13 @@
 {
-  "name": "FileTransfer-WebRTC",
+  "name": "webrtc-im",
   "services": [
     {
       "name": "webrtc-im",
-      "buildCommand": "pnpm build:webrtc-im",
-      "outputDirectory": "packages/webrtc-im/build/static",
-      "installCommand": "pnpm install",
+      "buildCommand": "pnpm install && pnpm build",
+      "startCommand": "pnpm start",
+      "environment": "nodejs",
       "rootDirectory": ".",
-      "framework": "static",
-      "env": {
-        "VITE_SUPABASE_URL": "${VITE_SUPABASE_URL}",
-        "VITE_SUPABASE_ANON_KEY": "${VITE_SUPABASE_ANON_KEY}",
-        "VITE_SUPABASE_CHANNEL": "${VITE_SUPABASE_CHANNEL}",
-        "VITE_TURN_ICE_SERVER": "${VITE_TURN_ICE_SERVER}"
-      }
+      "outputDirectory": "packages/webrtc-im/build/static"
     }
   ]
 }
