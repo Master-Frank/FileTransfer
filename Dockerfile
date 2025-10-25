@@ -1,20 +1,19 @@
-# 使用 Node.js 18 作为基础镜像
+# Build stage
 FROM node:18-alpine AS builder
 
-# 设置工作目录
+# Install pnpm (use latest version for better compatibility)
+RUN npm install -g pnpm@latest
+
 WORKDIR /app
 
-# 安装 pnpm
-RUN npm install -g pnpm
-
-# 复制 package.json 和 pnpm-lock.yaml
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Copy package files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/webrtc-im/package.json ./packages/webrtc-im/
 COPY packages/webrtc/package.json ./packages/webrtc/
 COPY packages/websocket/package.json ./packages/websocket/
 
-# 安装依赖
-RUN pnpm install --frozen-lockfile
+# Install dependencies (remove frozen-lockfile to allow lockfile updates)
+RUN pnpm install
 
 # 复制源代码
 COPY . .

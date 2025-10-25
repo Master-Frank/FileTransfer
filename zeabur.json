@@ -5,14 +5,14 @@
       "name": "webrtc-im",
       "buildCommand": "pnpm build:webrtc-im",
       "outputDirectory": "packages/webrtc-im/build/static",
-      "installCommand": "pnpm install --frozen-lockfile",
+      "installCommand": "pnpm install",
       "rootDirectory": ".",
       "framework": "static",
       "env": {
-        "SUPABASE_URL": "https://wosurlldtvphzshxdewn.supabase.co",
-        "SUPABASE_ANON": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indvc3VybGxkdHZwaHpzaHhkZXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyODM2MzMsImV4cCI6MjA3Njg1OTYzM30.FtfDz51yPEUu4y33NNPP4WK4DSaf6y9gFw6OhfBHbnc",
-        "SUPABASE_CHANNEL": "webrtc-im",
-        "TURN_ICE": "[]"
+        "VITE_SUPABASE_URL": "${VITE_SUPABASE_URL}",
+        "VITE_SUPABASE_ANON_KEY": "${VITE_SUPABASE_ANON_KEY}",
+        "VITE_SUPABASE_CHANNEL": "${VITE_SUPABASE_CHANNEL}",
+        "VITE_TURN_ICE_SERVER": "${VITE_TURN_ICE_SERVER}"
       }
     }
   ]
