@@ -1,7 +1,15 @@
 {
-  "name": "webrtc-im",
-  "buildCommand": "pnpm install && pnpm build",
-  "startCommand": "pnpm start",
-  "environment": "nodejs",
-  "rootDirectory": "."
+  "$schema": "https://zeabur.com/schema.json",
+  "services": {
+    "webrtc-im": {
+      "type": "nodejs",
+      "buildCommand": "pnpm install --frozen-lockfile && pnpm build",
+      "startCommand": "node server.js",
+      "environment": {
+        "NODE_ENV": "production"
+      },
+      "rootDirectory": ".",
+      "port": 3000
+    }
+  }
 }
